@@ -63,7 +63,7 @@ table{width:100%;border-collapse:collapse;font-size:.8rem}th{font-size:.66rem;co
 <div class="container">
   <div class="header">
     <div>
-      <h1>MI FINANZA <small style="font-size:.7rem;background:var(--purple);color:#fff;padding:3px 8px;border-radius:999px">Mensual</small> <small id="fbStatus" style="font-size:.6rem">● Local</small></h1>
+      <h1>MI FINANZA <small style="font-size:.7rem;background:var(--purple);color:#fff;padding:3px 8px;border-radius:999px">Mensual</small> <small id="fbStatus" style="font-size:.6rem">● Conectando...</small></h1>
       <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
         <small style="font-weight:700">Ver mes:</small>
         <input id="filterMes" type="month" style="width:auto;padding:6px 10px">
@@ -173,16 +173,35 @@ const firebaseConfig = {
   appId: "1:469049968855:web:1f050de9de75845fb40892",
   measurementId: "G-PG01V2M35V"
 };
-
-let db; try{const app=initializeApp(firebaseConfig);db=getFirestore(app);document.getElementById('fbStatus').textContent="● Firebase";}catch(e){document.getElementById('fbStatus').textContent="● Local";}
-window.firebaseSave=async(data)=>{if(!db)return;const pin=localStorage.getItem('finanzas_pin')||'default';await setDoc(doc(db,"finanzas",pin),{data:JSON.stringify(data),updated:new Date()});}
-window.firebaseLoad=async()=>{if(!db)return null;const pin=localStorage.getItem('finanzas_pin')||'default';const snap=await getDoc(doc(db,"finanzas",pin)); if(snap.exists()) return JSON.parse(snap.data().data); return null;}
+let db;
+try{
+  const app=initializeApp(firebaseConfig);
+  db=getFirestore(app);
+  document.getElementById('fbStatus').textContent="● Firebase conectado";
+  document.getElementById('fbStatus').style.color="#10b981";
+}catch(e){
+  document.getElementById('fbStatus').textContent="● Solo local";
+  document.getElementById('fbStatus').style.color="#ef4444";
+}
+window.firebaseSave=async(data)=>{
+  if(!db) return;
+  const pin=localStorage.getItem('finanzas_pin')||'default';
+  await setDoc(doc(db,"finanzas",pin),{data:JSON.stringify(data),updated:new Date()});
+}
+window.firebaseLoad=async()=>{
+  if(!db) return null;
+  const pin=localStorage.getItem('finanzas_pin')||'default';
+  const snap=await getDoc(doc(db,"finanzas",pin));
+  if(snap.exists()) return JSON.parse(snap.data().data);
+  return null;
+}
 </script>
 
 <script>
 let type='ingreso';
 let data=JSON.parse(localStorage.getItem('finanzas_todo_final')||'null') || {transactions:[],uni:{nombre:"Derecho",costoSem:4691523,numSem:10,inicio:"2027-02",infla:7,extra:0},dark:false};
 const cats={ingreso:['💼 Trabajo','💻 Freelance','💰 Otro ingreso'],gasto:['Vivienda','Alimentos','Transporte (Gasolina)','Servicios Públicos','Aseos','Entretenimiento','Pan Linea Telefonica','Internet','10% del salario'],ahorro:['💰 Ahorro','🏦 Inversión'],universidad:['🎓 Derecho','📚 Libros Derecho']};
+
 function setType(t){
   document.getElementById('formArea').style.display=(t==='saldo'||t==='historial')?'none':'block';
   document.getElementById('saldoArea').style.display=t==='saldo'?'block':'none';
@@ -191,17 +210,59 @@ function setType(t){
   if(cats[t]) document.getElementById('category').innerHTML=cats[t].map(c=>`<option>${c}</option>`).join('');
   if(t==='historial') renderHist();
 }
-function save(){localStorage.setItem('finanzas_todo_final',JSON.stringify(data)); if(window.firebaseSave) window.firebaseSave(data);}
+
+async function save(){
+  localStorage.setItem('finanzas_todo_final',JSON.stringify(data));
+  if(window.firebaseSave){
+    try{
+      await window.firebaseSave(data);
+      document.getElementById('fbStatus').textContent='● Guardado ✅ '+new Date().toLocaleTimeString();
+      document.getElementById('fbStatus').style.color='#10b981';
+    }catch(e){
+      console.error(e);
+      document.getElementById('fbStatus').textContent='● Error: '+e.message;
+      document.getElementById('fbStatus').style.color='#ef4444';
+    }
+  }
+}
+
 function format(n){return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(isNaN(n)?0:n)}
-function checkPin(){const input=document.getElementById('pinInput').value; if(input.length!==4) return alert('4 dígitos'); const guardado=localStorage.getItem('finanzas_pin'); if(!guardado){localStorage.setItem('finanzas_pin',input); document.getElementById('pinScreen').style.display='none'; render();} else{if(input===guardado){document.getElementById('pinScreen').style.display='none'; render();} else{document.getElementById('pinStatus').textContent='PIN incorrecto';}}}
-function changePin(){const n=prompt('Nuevo PIN 4 dígitos:'); if(n&&n.length===4){localStorage.setItem('finanzas_pin',n); alert('PIN cambiado');}}
+
+async function checkPin(){
+  const input=document.getElementById('pinInput').value;
+  if(input.length!==4) return alert('4 dígitos');
+  const guardado=localStorage.getItem('finanzas_pin');
+  document.getElementById('pinStatus').textContent='Cargando...';
+  if(!guardado){
+    localStorage.setItem('finanzas_pin',input);
+    document.getElementById('pinScreen').style.display='none';
+    if(window.firebaseLoad){
+      try{ const nube=await window.firebaseLoad(); if(nube){ data=nube; localStorage.setItem('finanzas_todo_final',JSON.stringify(data)); } }catch(e){console.error(e);}
+    }
+    render();
+  } else {
+    if(input===guardado){
+      document.getElementById('pinScreen').style.display='none';
+      if(window.firebaseLoad){
+        document.getElementById('fbStatus').textContent='● Cargando nube...';
+        try{
+          const nube=await window.firebaseLoad();
+          if(nube){ data=nube; localStorage.setItem('finanzas_todo_final',JSON.stringify(data)); document.getElementById('fbStatus').textContent='● Nube cargada ✅'; }
+          else { document.getElementById('fbStatus').textContent='● Sin datos en nube, usando local'; }
+        }catch(e){ document.getElementById('fbStatus').textContent='● Error: '+e.message; }
+      }
+      render();
+    } else { document.getElementById('pinStatus').textContent='PIN incorrecto'; }
+  }
+}
+
+function changePin(){const n=prompt('Nuevo PIN 4 dígitos:'); if(n&&n.length===4){localStorage.setItem('finanzas_pin',n); alert('PIN cambiado'); save();}}
 function addTx(){const d=document.getElementById('desc').value.trim(); const a=parseFloat(document.getElementById('amount').value); const c=document.getElementById('category').value; const dt=document.getElementById('date').value; if(!d||!a||a<=0||!dt) return alert('Completa todo'); data.transactions.push({id:Date.now(),type,desc:d,amount:a,category:c,date:dt}); document.getElementById('desc').value=''; document.getElementById('amount').value=''; save(); render();}
 function saveUni(){data.uni={nombre:document.getElementById('uNombre').value,costoSem:parseFloat(document.getElementById('uCostoSem').value)||0,numSem:parseInt(document.getElementById('uNumSem').value)||0,inicio:document.getElementById('uInicio').value,infla:parseFloat(document.getElementById('uInfla').value)||0,extra:parseFloat(document.getElementById('uExtra').value)||0}; save(); render();}
-function borrarTodo(){if(!confirm('¿Borrar todo?')) return; data.transactions=[]; save(); render();}
+function borrarTodo(){if(!confirm('¿Borrar todo de nube y local?')) return; data.transactions=[]; save(); render();}
 function delTx(id){data.transactions=data.transactions.filter(t=>t.id!==id); save(); render();}
 function toggleDark(){document.body.classList.toggle('dark');data.dark=document.body.classList.contains('dark');save();}
 function exportExcel(){const ws=XLSX.utils.json_to_sheet(data.transactions.map(t=>({Fecha:t.date,Descripcion:t.desc,Tipo:t.type,Categoria:t.category,Monto:t.amount})));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Finanzas');XLSX.writeFile(wb,'Finanzas.xlsx');}
-
 function generarPDFCompleto(){
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
   const incG=data.transactions.filter(t=>t.type==='ingreso').reduce((a,b)=>a+b.amount,0);
@@ -222,7 +283,6 @@ function generarPDFCompleto(){
   doc.autoTable({startY:doc.lastAutoTable.finalY+13, head:[['Fecha','Descripcion','Tipo','Categoria','Monto']], body:allRows, styles:{fontSize:7}});
   doc.save(`Finanzas_COMPLETO_${new Date().toISOString().slice(0,10)}.pdf`);
 }
-
 let calcVal='',lastResult=0;
 function calcAdd(v){calcVal+=v;document.getElementById('calcScreen').textContent=calcVal||'0';}
 function calcClear(){calcVal='';document.getElementById('calcScreen').textContent='0';}
