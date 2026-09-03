@@ -200,7 +200,7 @@ window.firebaseLoad=async()=>{
 <script>
 let type='ingreso';
 let data=JSON.parse(localStorage.getItem('finanzas_todo_final')||'null') || {transactions:[],uni:{nombre:"Derecho",costoSem:4691523,numSem:10,inicio:"2027-02",infla:7,extra:0},dark:false};
-const cats={ingreso:['💼 Trabajo','💻 Freelance','💰 Otro ingreso'],gasto:['Vivienda','Alimentos','Transporte (Gasolina)','Servicios Públicos','Aseos','Entretenimiento','Pan Linea Telefonica','Internet','10% del salario'],ahorro:['💰 Ahorro','🏦 Inversión'],universidad:['🎓 Derecho','📚 Libros Derecho']};
+const cats={ingreso:['💼 Trabajo','💻 Freelance','💰 Otro ingreso'],gasto:['Vivienda','Alimentos','Transporte (Gasolina)','Servicios Públicos','Aseos','Entretenimiento','Pan Linea Telefonica','Internet','10% del salario','Otros'],ahorro:['💰 Ahorro','🏦 Inversión'],universidad:['🎓 Derecho','📚 Libros Derecho']};
 
 function setType(t){
   document.getElementById('formArea').style.display=(t==='saldo'||t==='historial')?'none':'block';
